@@ -3,11 +3,11 @@ import numpy as np
 def add_nonlinear_features(X, temp_idx, hum_idx, wind_idx):
     """
     Adds polynomial and interaction features for selected continuous columns.
-    
+
     Parameters:
     - X: NumPy array (already includes bias column)
     - temp_idx, hum_idx, wind_idx: indices of continuous features
-    
+
     Returns:
     - X_new: expanded feature matrix
     """
