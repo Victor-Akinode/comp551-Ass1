@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 
-def process_csv(csv_path, train_frac = 0.8):
+def process_csv(csv_path, train_frac = 0.8, one_hot_encode = True):
     """
     Takes path to day.csv from the UCI bike sharing dataset and returns (X_train, X_test, y_train, y_test) as NumPy arrays.
 
@@ -43,11 +43,13 @@ def process_csv(csv_path, train_frac = 0.8):
         raise ValueError("Missing or non-conforming values were found; please ensure all fields are populated as expected according to the specifications of the dataset.")
 
     # One-hot encode all categorical features (first converting them to pd.Categorical so that the column names are clearer for debugging purposes)
-    df["mnth"] = pd.Categorical(df["mnth"], categories=range(1, 13)).rename_categories(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"])
-    df["season"] = pd.Categorical(df["season"], categories=[1, 2, 3, 4]).rename_categories(["winter", "spring", "summer", "fall"])
-    df["weekday"] = pd.Categorical(df["weekday"], categories=range(7)).rename_categories(["sun", "mon", "tue", "wed", "thu", "fri", "sat"])
-    df["weathersit"] = pd.Categorical(df["weathersit"], categories=[1, 2, 3, 4]).rename_categories(["clear", "mist", "light", "heavy"])
-    df = pd.get_dummies(df, columns=["season", "mnth", "weekday", "weathersit"], drop_first = True)
+    if one_hot_encode:
+
+        df["mnth"] = pd.Categorical(df["mnth"], categories=range(1, 13)).rename_categories(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"])
+        df["season"] = pd.Categorical(df["season"], categories=[1, 2, 3, 4]).rename_categories(["winter", "spring", "summer", "fall"])
+        df["weekday"] = pd.Categorical(df["weekday"], categories=range(7)).rename_categories(["sun", "mon", "tue", "wed", "thu", "fri", "sat"])
+        df["weathersit"] = pd.Categorical(df["weathersit"], categories=[1, 2, 3, 4]).rename_categories(["clear", "mist", "light", "heavy"])
+        df = pd.get_dummies(df, columns=["season", "mnth", "weekday", "weathersit"], drop_first = True)
 
     # Use "dteday" feature to ensure dataset is sorted chronologically, then drop "dteday"
     df["dteday"] = pd.to_datetime(df["dteday"], yearfirst = True)
@@ -78,7 +80,68 @@ def process_csv(csv_path, train_frac = 0.8):
     X_train = np.c_[np.ones(len(X_train)), X_train]
     X_test = np.c_[np.ones(len(X_test)), X_test]
 
-    return X_train, X_test, y_train, y_test
+    return X_train.astype(np.float64), X_test.astype(np.float64), y_train.astype(np.float64), y_test.astype(np.float64)
+
+class ArrayScaler:
+
+    def __init__(self, method = "zscore", idx = None, eps = 1e-12):
+
+        if idx is None:
+
+            raise ValueError("You must provide idx = [...] to specify which columns to scale.")
+
+        self.method = method
+        self.idx = list(idx)
+        self.eps = eps
+        self.params_ = None
+
+    def fit(self, X_train):
+
+        Xs = X_train[:, self.idx].astype(float)
+
+        if self.method == "zscore":
+
+            mu = Xs.mean(axis = 0)
+            sigma = Xs.std(axis = 0)
+            sigma[sigma < self.eps] = 1.0
+            self.params_ = ("zscore", mu, sigma)
+
+        elif self.method == "minmax":
+
+            mn = Xs.min(axis = 0)
+            mx = Xs.max(axis = 0)
+            denom = mx - mn
+            denom[denom < self.eps] = 1.0
+            self.params_ = ("minmax", mn, denom)
+
+        elif self.method == "robust":
+
+            med = np.median(Xs, axis = 0)
+            q25 = np.percentile(Xs, 25, axis = 0)
+            q75 = np.percentile(Xs, 75, axis = 0)
+            iqr = q75 - q25
+            iqr[iqr < self.eps] = 1.0
+            self.params_ = ("robust", med, iqr)
+
+        else:
+
+            raise ValueError(f"Unknown scaling method: {self.method}")
+
+        return self
+
+    def transform(self, X):
+
+        if self.params_ is None:
+
+            raise ValueError("Scaler is not fitted; please call fit(X_train) first.")
+
+        kind, a, b = self.params_
+        out = X.astype(float).copy()
+        Xs = out[:, self.idx]
+
+        out[:, self.idx] = (Xs - a) / b
+
+        return out
 
 if __name__ == "__main__":
 
