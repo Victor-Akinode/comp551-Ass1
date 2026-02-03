@@ -1,6 +1,6 @@
 import numpy as np
 
-def add_nonlinear_features(X, temp_idx, hum_idx, wind_idx):
+def add_nonlinear_features(X, feature_index, polynomial = True, interaction = True, transform = True):
     """
     Adds polynomial and interaction features for selected continuous columns.
 
@@ -12,30 +12,52 @@ def add_nonlinear_features(X, temp_idx, hum_idx, wind_idx):
     - X_new: expanded feature matrix
     """
 
-    # Extract continuous features
-    temp = X[:, temp_idx]
-    hum = X[:, hum_idx]
-    wind = X[:, wind_idx]
+    fi = dict(feature_index)
+    new_cols = []
+    new_names = []
+
+    if transform and "mnth" not in fi:
+
+        raise ValueError("Please ensure that mnth was not one-hot encoded before attempting to perform sin/cos transform.")    
+
+    # Extract features
+    temp = X[:, fi["temp"]]
+    hum = X[:, fi["hum"]]
+    windspeed = X[:, fi["windspeed"]]
+    weathersit = X[:, fi["weathersit"]]
+    if transform:
+        mnth = X[:, fi["mnth"]]
 
     # Polynomial features
-    temp_sq = temp ** 2
-    hum_sq = hum ** 2
-    wind_sq = wind ** 2
+    if polynomial:
+
+        new_cols += [temp**2, hum**2, windspeed**2]
+        new_names += ["temp_sq", "hum_sq", "windspeed_sq"]
 
     # Interaction features
-    temp_hum = temp * hum
-    temp_wind = temp * wind
-    hum_wind = hum * wind
+    if interaction:
 
+        new_cols += [temp * hum, temp * windspeed, temp * weathersit]
+        new_names += ["temp_hum", "temp_windspeed", "temp_weathersit"]
+    
+    # Transformation of month feature
+    if transform:
+
+        theta = 2 * np.pi * (mnth - 1) / 12.0
+        new_cols += [np.sin(theta), np.cos(theta)]
+        new_names += ["month_sin", "month_cos"]
+
+    if not new_cols:
+    
+        return X, fi
+    
     # Concatenate original features with new ones
-    X_new = np.column_stack([
-        X,
-        temp_sq,
-        hum_sq,
-        wind_sq,
-        temp_hum,
-        temp_wind,
-        hum_wind
-    ])
+    X_new = np.column_stack([X] + new_cols)
 
-    return X_new
+    # Update feature index
+    start_idx = X.shape[1]
+    for i, name in enumerate(new_names):
+
+        fi[name] = start_idx + i
+
+    return X_new, fi
