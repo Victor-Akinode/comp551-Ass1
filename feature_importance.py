@@ -88,7 +88,7 @@ def print_table(results, top_k = 10):
             ("%.6f" % r["std"]).rjust(10),
         )
 
-def plot_importance(results, top_k = 10):
+def plot_importance(results, path = None, top_k = 10):
     
     k = min(top_k, len(results))
     top = results[:k][::-1]
@@ -103,4 +103,6 @@ def plot_importance(results, top_k = 10):
     plt.xlabel("Permutation importance (Δ loss)")
     plt.barh(labels, vals)
     plt.tight_layout()
+    if path:
+        plt.savefig(path, dpi=300, bbox_inches='tight')
     plt.show()
